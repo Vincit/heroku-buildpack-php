@@ -11,8 +11,14 @@ install_ext () {
     if [[ -f "$ext_ini" ]]; then
         ext_so=$(php -r '$ini=parse_ini_file("'$ext_ini'"); echo $ext=$ini["zend_extension"]?:$ini["extension"]; exit((int)empty($ext));') # read .so name from .ini because e.g. opcache.so is named "zend-opcache"
         if [[ ! -f "$PHP_EXT_DIR/$ext_so" ]]; then
-            curl --silent --location "${S3_URL}/extensions/${ext_dir}/${ext}.tar.gz" | tar xz -C $BUILD_DIR/.heroku/php
-            echo "- ${ext} (${reason}; downloaded)" | indent
+        
+            if [ ! -f "$CACHE_DIR/${ext}.tar.gz" ]; then
+              echo "- ${ext} (${reason}; downloaded)" | indent
+              curl --silent --location "${S3_URL}/extensions/${ext_dir}/${ext}.tar.gz" | tee "$CACHE_DIR/${ext}.tar.gz" | tar xz -C $BUILD_DIR/.heroku/php
+            else
+              echo "- ${ext} (${reason}; cached)" | indent
+              tar xzf "$CACHE_DIR/${ext}.tar.gz" -C $BUILD_DIR/.heroku/php
+            fi
         else
             echo "- ${ext} (${reason}; bundled)" | indent
         fi
@@ -175,8 +181,15 @@ export PATH=/app/.heroku/php/bin:$PATH
 
 if [[ "${PHP_VERSION}" ]]; then
     PHP_DIST_URL="$S3_URL/php-$PHP_VERSION.tar.gz"
-    echo "- PHP $PHP_VERSION" | indent
-    curl --silent --location "$PHP_DIST_URL" | tar xz -C $BUILD_DIR/.heroku/php
+    
+    if [ ! -f "$CACHE_DIR/php-$PHP_VERSION.tar.gz" ]; then
+      echo "- PHP $PHP_VERSION" | indent
+      curl --silent --location "$PHP_DIST_URL" | tee "$CACHE_DIR/php-$PHP_VERSION.tar.gz" | tar xz -C $BUILD_DIR/.heroku/php
+    else
+      echo "- PHP $PHP_VERSION (cached)" | indent
+      tar xzf "$CACHE_DIR/php-$PHP_VERSION.tar.gz" -C $BUILD_DIR/.heroku/php
+    fi
+    
     PHP_EXT_DIR=$(php-config --extension-dir)
     # update config files
     mkdir -p $BUILD_DIR/.heroku/php/etc/php
@@ -189,8 +202,15 @@ if [[ "${PHP_VERSION}" ]]; then
 fi
 if [[ "${HHVM_VERSION}" ]]; then
     HHVM_DIST_URL="$S3_URL/hhvm-$HHVM_VERSION.tar.gz"
-    echo "- HHVM $HHVM_VERSION" | indent
-    curl --silent --location "$HHVM_DIST_URL" | tar xz -C $BUILD_DIR/.heroku/php
+    
+    if [ ! -f "$CACHE_DIR/hhvm-$HHVM_VERSION.tar.gz" ]; then
+      echo "- HHVM $HHVM_VERSION" | indent
+      curl --silent --location "$HHVM_DIST_URL" | tee "$CACHE_DIR/hhvm-$HHVM_VERSION.tar.gz" | tar xz -C $BUILD_DIR/.heroku/php
+    else
+      echo "- HHVM $HHVM_VERSION (cached)" | indent
+      tar xzf "$CACHE_DIR/hhvm-$HHVM_VERSION.tar.gz" -C $BUILD_DIR/.heroku/php
+    fi
+    
     # store HHVM version in the slug for possible later evaluation
     mkdir -p $BUILD_DIR/.heroku/php/.versions/hhvm
     echo $HHVM_VERSION > $BUILD_DIR/.heroku/php/.versions/hhvm/hhvm
@@ -203,8 +223,15 @@ fi
 
 APACHE_VERSION="2.4.10"
 APACHE_DIST_URL="$S3_URL/apache-$APACHE_VERSION.tar.gz"
-echo "- Apache $APACHE_VERSION" | indent
-curl --silent --location "$APACHE_DIST_URL" | tar xz -C $BUILD_DIR/.heroku/php
+
+if [ ! -f "$CACHE_DIR/apache-$APACHE_VERSION.tar.gz" ]; then
+  echo "- Apache $APACHE_VERSION" | indent
+  curl --silent --location "$APACHE_DIST_URL" | tee "$CACHE_DIR/apache-$APACHE_VERSION.tar.gz" | tar xz -C $BUILD_DIR/.heroku/php
+else
+  echo "- Apache $APACHE_VERSION (cached)" | indent
+  tar xzf "$CACHE_DIR/apache-$APACHE_VERSION.tar.gz" -C $BUILD_DIR/.heroku/php
+fi
+
 # Apache; copy in our config
 cp $BP_DIR/conf/apache2/httpd.conf.default $BUILD_DIR/.heroku/php/etc/apache2/httpd.conf
 # store Apache version in the slug for possible later evaluation
@@ -213,8 +240,15 @@ echo $APACHE_VERSION > $BUILD_DIR/.heroku/php/.versions/apache2/apache2
 
 NGINX_VERSION="1.6.0"
 NGINX_DIST_URL="$S3_URL/nginx-$NGINX_VERSION.tar.gz"
-echo "- Nginx $NGINX_VERSION" | indent
-curl --silent --location "$NGINX_DIST_URL" | tar xz -C $BUILD_DIR/.heroku/php
+
+if [ ! -f "$CACHE_DIR/nginx-$NGINX_VERSION.tar.gz" ]; then
+  echo "- Nginx $NGINX_VERSION" | indent
+  curl --silent --location "$NGINX_DIST_URL" | tee "$CACHE_DIR/nginx-$NGINX_VERSION.tar.gz" | tar xz -C $BUILD_DIR/.heroku/php
+else
+  echo "- Nginx $NGINX_VERSION (cached)" | indent
+  tar xzf "$CACHE_DIR/nginx-$NGINX_VERSION.tar.gz" -C $BUILD_DIR/.heroku/php
+fi
+
 # nginx; copy in our config
 cp $BP_DIR/conf/nginx/nginx.conf.default $BUILD_DIR/.heroku/php/etc/nginx/nginx.conf
 # store Nginx version in the slug for possible later evaluation
@@ -267,7 +301,15 @@ if [[ -f "composer.phar" ]]; then
     composer --version 2>&1 | grep "^Composer version" > /dev/null || error "File '/composer.phar' is not a Composer executable!"
     notice_inline "Using '/composer.phar' to install dependencies."
 else
-    curl --silent --location "$S3_URL/composer.tar.gz" | tar xz -C $BUILD_DIR/.heroku/php
+
+    if [ ! -f "$CACHE_DIR/composer.tar.gz" ]; then
+      echo "- Composer" | indent
+      curl --silent --location "$S3_URL/composer.tar.gz" | tee "$CACHE_DIR/composer.tar.gz" | tar xz -C $BUILD_DIR/.heroku/php
+    else
+      echo "- Composer (cached)" | indent
+      tar xzf "$CACHE_DIR/composer.tar.gz" -C $BUILD_DIR/.heroku/php
+    fi
+
     composer() {
         $engine `which composer` "$@"
     }
