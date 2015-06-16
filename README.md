@@ -1,8 +1,10 @@
 # Heroku buildpack: PHP
 
-This is the official [Heroku buildpack](http://devcenter.heroku.com/articles/buildpacks) for PHP applications.
+This is a fork of the official [Heroku buildpack](http://devcenter.heroku.com/articles/buildpacks) for PHP applications.
 
 It uses Composer for dependency management, supports PHP or HHVM (experimental) as runtimes, and offers a choice of Apache2 or Nginx web servers.
+
+This fork also caches installation packages in the cache directory for faster deployments.
 
 ## Usage
 
